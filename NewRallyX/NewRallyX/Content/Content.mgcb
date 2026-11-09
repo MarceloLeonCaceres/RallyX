@@ -109,3 +109,20 @@
 /processorParam:TextureFormat=Color
 /build:sprites.png;sprites
 
+#begin 03. NEW RALLY X - IN GAME MUSIC.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:03. NEW RALLY X - IN GAME MUSIC.mp3
+
+#begin 05. NEW RALLY X - MY CAR -SMOKESCREEN.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:05. NEW RALLY X - MY CAR -SMOKESCREEN.mp3
+
+#begin 30. RALLY X - MY CAR -CRASH.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:30. RALLY X - MY CAR -CRASH.mp3

@@ -2,7 +2,7 @@
 {
     internal class GameState
     {
-        public const int INITIAL_FUEL = 64;
+        public const int INITIAL_FUEL = 640;
         public const int INITIAL_LIVES = 3;
 
         public int[] Scores { get; set; } = new int[] { 0, 0 };

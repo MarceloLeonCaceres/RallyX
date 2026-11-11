@@ -126,3 +126,21 @@
 /processor:SoundEffectProcessor
 /processorParam:Quality=Best
 /build:30. RALLY X - MY CAR -CRASH.mp3
+
+#begin 06. NEW RALLY X - NORMAL FLAG -GET.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:06. NEW RALLY X - NORMAL FLAG -GET.mp3
+
+#begin 07. NEW RALLY X - SPECIAL FLAG -GET.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:07. NEW RALLY X - SPECIAL FLAG -GET.mp3
+
+#begin 09. NEW RALLY X - FUEL BONUS SOUND.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:09. NEW RALLY X - FUEL BONUS SOUND.mp3

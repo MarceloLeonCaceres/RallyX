@@ -11,6 +11,7 @@ namespace NewRallyX.Framework.Sprites
 
         private readonly int _cellWidth;
         private readonly int _cellHeight;
+        public Texture2D Texture => _texture;
 
         public SpriteSheet(Game game, string spriteSheetName, int columns, int rows)
         {

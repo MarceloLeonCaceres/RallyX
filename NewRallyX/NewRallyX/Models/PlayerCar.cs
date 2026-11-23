@@ -7,12 +7,14 @@ public class PlayerCar
 {
     public Vector2 Position { get; private set; }
     public Vector2 Direction { get; private set; } // Vector de la grilla (ej. 1,0 para derecha)
+    private readonly Vector2 _startPosition;
     public float Speed { get; } = 150f; // Pixeles por segundo
                                         
     // Almacena la tecla que el jugador está presionando actualmente
     private Vector2 _nextDirection;
     public PlayerCar(Vector2 startPosition)
     {
+        _startPosition = startPosition;
         Position = startPosition;
         Direction = new Vector2(0,0);
         _nextDirection = Direction;
@@ -84,5 +86,10 @@ public class PlayerCar
             // Nota: Si ambas están libres (una intersección en T) o ambas bloqueadas (callejón sin salida),
             // el auto simplemente se detendrá esperando que presiones una tecla.
         }
+    }
+    public void Reset()
+    {
+        Position = _startPosition;
+        Direction = new Vector2(0, -1);
     }
 }

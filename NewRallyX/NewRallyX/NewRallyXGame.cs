@@ -57,12 +57,18 @@ public class NewRallyXGame : Game
     private float _timerAnimacion = 0f;
     private bool _giraDerecha = true;
     // Cambia el 10 por el ID real de la bandera amarilla en tu matriz
-    private const int ID_BANDERA = 9;
-    private const int ID_BANDERA_ESPECIAL = 10;
+    public const int ID_BANDERA = 900;
+    public const int ID_BANDERA_ESPECIAL = 901;
     private const int PUNTOS_POR_BANDERA = 100;
 
     // Como subiste tu tanque a 6400, recargar 1 punto no se notará. Le daremos 500.
     private const int COMBUSTIBLE_POR_BANDERA = 500;
+    public Vector2 PlayerPosition => _player.Position;
+    // carros enemigos
+    private List<EnemyCar> _enemies = new List<EnemyCar>();
+    public IReadOnlyList<EnemyCar> Enemies => _enemies;
+    private float _crashTimer = 0f;
+    private bool EstaChocando => _crashTimer > 0f;
     public NewRallyXGame()
     {
         _graphics = new GraphicsDeviceManager(this);
@@ -78,8 +84,8 @@ public class NewRallyXGame : Game
         // TODO: Add your initialization logic here
         // Coordenada inicial de prueba
         _player = new PlayerCar(new Vector2(456, 1200));
-        MapShape.Map123[18062] = ID_BANDERA; // Convertir la baldosa en asfalto transitable
         SembrarBanderas();
+        _enemies.Add(new EnemyCar(new Vector2(456, 1264)));
         base.Initialize();
     }
 
@@ -107,7 +113,7 @@ public class NewRallyXGame : Game
         _mapBlocksTex = Content.Load<Texture2D>("map-blocks");
         _mapBlocks = new SpriteSheet(_mapBlocksTex, 21, 96);
 
-        _sidebar = new Sidebar(this, _spriteBatch, _sprites, _arcadeFont);
+        _sidebar = new Sidebar(this, _spriteBatch, _sprites, _arcadeFont);   
 
         _musicaFondo = Content.Load<Song>("03. NEW RALLY X - IN GAME MUSIC");
         _efectoHumo = Content.Load<SoundEffect>("05. NEW RALLY X - MY CAR -SMOKESCREEN");
@@ -129,6 +135,16 @@ public class NewRallyXGame : Game
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         KeyboardState key = Keyboard.GetState();
 
+        if (EstaChocando)
+        {
+            _crashTimer -= deltaTime;
+            if (_crashTimer <= 0f)
+            {
+                CompletarReinicio();
+            }
+            return; // Congela autos, humo y gasolina durante los 1.5s
+        }
+
         // 1. Enviar intención de giro al dominio
         if (key.IsKeyDown(Keys.Up)) _player.RequestTurn(new Vector2(0, -1));
         else if (key.IsKeyDown(Keys.Down)) _player.RequestTurn(new Vector2(0, 1));
@@ -139,10 +155,10 @@ public class NewRallyXGame : Game
         // Dentro de NewRallyXGame.Update()
         _player.Move(deltaTime, EsCaminoLibre);
 
-        // 2. Verificar colisiones letales (Rocas)
-        if (PisoUnaRoca())
+        if(PisoUnaRoca() || ChocoConEnemigo())
         {
-            ManejarMuerteJugador();
+            IniciarChoque();
+            return;
         }
 
         // 3. RECOLECTAR BANDERAS
@@ -187,10 +203,7 @@ public class NewRallyXGame : Game
             // Si no está girando, aseguramos que apunte a donde va
             _direccionVisual = _player.Direction;
         }
-
-        if (PisoUnaRoca())
-            ManejarMuerteJugador();
-
+        
         // 3. Centrar la cámara (invirtiendo la posición del auto y sumando la mitad de la pantalla 288x224)
         _offset = new Vector2(-_player.Position.X + 144, -_player.Position.Y + 112);
 
@@ -220,7 +233,30 @@ public class NewRallyXGame : Game
             }
         }
 
+        // Actualizar carros enemigos
+        foreach (var enemy in _enemies)
+            enemy.Update(deltaTime, _player.Position, EsCaminoLibre);
+
         _previousKeyboardState = key; // Guardamos el estado para el próximo fotograma
+
+        // Revisar si los enemigos chocaron con el humo
+        foreach (var enemy in _enemies)
+        {
+            if (enemy.IsStunned) continue;
+
+            Rectangle enemyHitbox = new Rectangle((int)enemy.Position.X + 2, (int)enemy.Position.Y + 2, 12, 12);
+
+            foreach (var smog in _smogClouds)
+            {
+                Rectangle smogHitbox = new Rectangle((int)smog.Position.X, (int)smog.Position.Y, 16, 16);
+
+                if (enemyHitbox.Intersects(smogHitbox))
+                {
+                    enemy.Stun(2.5f); // Aturdido por 2.5 segundos
+                    break;
+                }
+            }
+        }
         base.Update(gameTime);
     }
 
@@ -279,19 +315,94 @@ public class NewRallyXGame : Game
 
             // C. Extraer el cuadro de animación correspondiente (0, 1 o 2)
             Rectangle sourceRect = new Rectangle(_frameGiro * 16, 0, 16, 16);
+            if (EstaChocando)
+            {
+                // Tiempo transcurrido desde el comienzo del choque.
+                float tiempoTranscurrido = 1.5f - _crashTimer;
 
-            // D. Dibujar rotando desde el centro geométrico (8, 8)
-            _spriteBatch.Draw(
-                _sprites.Texture,
-                _player.Position + _offset + new Vector2(8, 8),
-                sourceRect,
-                Color.White,
-                rotacionBase,
-                new Vector2(8, 8),  // Centro de rotación
-                1f,                 // Escala
-                SpriteEffects.None, // La rotación pura ya hace todo el trabajo
-                0f
-            );
+                // Giro continuo durante el choque.
+                // 4 vueltas completas en 1.5 segundos.
+                float anguloChoque = tiempoTranscurrido * MathHelper.TwoPi * 4f;
+
+                _spriteBatch.Draw(
+                    _sprites.Texture,
+                    _player.Position + _offset + new Vector2(8, 8),
+                    sourceRect,
+                    Color.White,
+                    anguloChoque,
+                    new Vector2(8, 8),
+                    1f,
+                    SpriteEffects.None,
+                    0f
+                );
+            }
+            else
+            {
+                _spriteBatch.Draw(
+                    _sprites.Texture,
+                    _player.Position + _offset + new Vector2(8, 8),
+                    sourceRect,
+                    Color.White,
+                    rotacionBase,
+                    new Vector2(8, 8),
+                    1f,
+                    SpriteEffects.None,
+                    0f
+                );
+            }
+            //if (EstaChocando)
+            //{
+            //    // Alterna entre 2 frames de explosión cada 0.15s (ajusta los índices X, Y de tu sprites.png)
+            //    int frameExplosion = ((int)(_crashTimer * 10) % 2 == 0) ? 12 : 13;
+            //    Rectangle crashRect = new Rectangle(frameExplosion * 16, 0, 16, 16);
+
+            //    _spriteBatch.Draw(
+            //        _sprites.Texture,
+            //        _player.Position + _offset,
+            //        crashRect,
+            //        Color.White
+            //    );
+            //}
+            //else
+            //{
+            //    // D. Dibujar rotando desde el centro geométrico (8, 8)
+            //    _spriteBatch.Draw(
+            //        _sprites.Texture,
+            //        _player.Position + _offset + new Vector2(8, 8),
+            //        sourceRect,
+            //        Color.White,
+            //        rotacionBase,
+            //        new Vector2(8, 8),  // Centro de rotación
+            //        1f,                 // Escala
+            //        SpriteEffects.None, // La rotación pura ya hace todo el trabajo
+            //        0f
+            //    );
+            //}
+
+            // DIBUJAR ENEMIGOS (Autos rojos)
+            // Ajusta 'indiceAutoRojo' (columna) y 'filaAutoRojo' (fila) según tu sprites.png
+            int indiceAutoRojo = 4;
+            int filaAutoRojo = 0;
+            Rectangle enemySourceRect = new Rectangle(indiceAutoRojo * 16, filaAutoRojo * 16, 16, 16);
+
+            foreach (var enemy in _enemies)
+            {
+                float rotacionEnemigo = enemy.IsStunned
+                    ? enemy.SpinAngle
+                    : (float)Math.Atan2(enemy.Direction.Y, enemy.Direction.X) + MathHelper.PiOver2;
+
+                _spriteBatch.Draw(
+                    _sprites.Texture,
+                    enemy.Position + _offset + new Vector2(8, 8),
+                    enemySourceRect,
+                    Color.White,
+                    rotacionEnemigo,
+                    new Vector2(8, 8),
+                    1f,
+                    SpriteEffects.None,
+                    0f
+                );
+            }
 
             _spriteBatch.End();
 
@@ -378,19 +489,52 @@ public class NewRallyXGame : Game
     }
     private void ManejarMuerteJugador()
     {
-        _efectoCrash.Play();
         GameState.Lives[0]--;
 
-        if (GameState.Lives[0] > 0)
+        if (GameState.Lives[0] <= 0)
         {
-            // Reiniciar la posición a la zona segura y limpiar el humo
-            _player = new PlayerCar(new Vector2(32, 112));
-            _smogClouds.Clear();
-        }
-        else
-        {
+
             // TODO: Lógica de Game Over (volver al menú principal, etc.)
+            return;
         }
+               
+        _player.Reset();
+        // Reiniciar la posición a la zona segura y limpiar el humo
+        //_player = new PlayerCar(new Vector2(32, 112));
+        _direccionVisual = _player.Direction;
+        _frameGiro = 0;
+
+        foreach (var enemy in _enemies)
+        {
+            enemy.Reset();
+        }
+        
+        _smogClouds.Clear();
+    }
+    private void IniciarChoque()
+    {
+        _crashTimer = 1.5f;
+        _efectoCrash.Play();
+    }
+    private void CompletarReinicio()
+    {
+        int jugadorActual = GameState.Player - 1;
+        GameState.Lives[jugadorActual]--;
+
+        if (GameState.Lives[jugadorActual] <= 0)
+        {
+            // Lógica de Game Over
+            return;
+        }
+
+        _player.Reset();
+        _direccionVisual = _player.Direction;
+        _frameGiro = 0;
+
+        foreach (var enemy in _enemies)
+            enemy.Reset();
+
+        _smogClouds.Clear();
     }
     private void RecolectarBanderas()
     {
@@ -421,48 +565,90 @@ public class NewRallyXGame : Game
             }
         }
     }
+    
     private void SembrarBanderas()
     {
+        const int ancho = 120;
+        const int alto = 192;
         Random rnd = new Random();
 
-        // 1. Encontrar todos los índices que son asfalto (0)
+        // Punto de partida: baldosa actual del jugador (ej. 57, 150)
+        int startX = (int)(_player.Position.X / 8);
+        int startY = (int)(_player.Position.Y / 8);
+        int startIndex = (startY * ancho) + startX;
+
+        bool[] visitado = new bool[MapShape.Map123.Length];
+        Queue<int> cola = new Queue<int>();
         List<int> posicionesLibres = new List<int>();
-        // Empezamos en 121 y terminamos antes para no evaluar fuera de la matriz
-        for (int i = 121; i < MapShape.Map123.Length - 121; i++)
+
+        visitado[startIndex] = true;
+        cola.Enqueue(startIndex);
+
+        int[] dx = { 1, -1, 0, 0 };
+        int[] dy = { 0, 0, 1, -1 };
+
+        // 1. Flood Fill (BFS) para encontrar solo caminos alcanzables
+        while (cola.Count > 0)
         {
-            // Si la baldosa es asfalto (0) Y sus 4 lados también son asfalto (0)
-            if (MapShape.Map123[i] == 0 &&
-                MapShape.Map123[i - 1] == 0 &&
-                MapShape.Map123[i + 1] == 0 &&
-                MapShape.Map123[i - 120] == 0 &&
-                MapShape.Map123[i + 120] == 0)
+            int actual = cola.Dequeue();
+            int x = actual % ancho;
+            int y = actual / ancho;
+
+            // Solo guardar como candidata si está en el centro del pasillo
+            if (x > 0 && x < ancho - 1 && y > 0 && y < alto - 1 &&
+                MapShape.Map123[actual - 1] == 0 &&
+                MapShape.Map123[actual + 1] == 0 &&
+                MapShape.Map123[actual - ancho] == 0 &&
+                MapShape.Map123[actual + ancho] == 0)
             {
-                // Entonces es el centro de un pasillo, lo agregamos.
-                posicionesLibres.Add(i);
+                posicionesLibres.Add(actual);
+            }
+
+            for (int i = 0; i < 4; i++)
+            {
+                int nx = x + dx[i];
+                int ny = y + dy[i];
+
+                if (nx < 0 || nx >= ancho || ny < 0 || ny >= alto) continue;
+
+                int vecino = (ny * ancho) + nx;
+                if (!visitado[vecino] && MapShape.Map123[vecino] == 0)
+                {
+                    visitado[vecino] = true;
+                    cola.Enqueue(vecino);
+                }
             }
         }
 
         // 2. Sembrar 9 banderas normales
-        for (int i = 0; i < 9; i++)
+        for (int i = 0; i < 9 && posicionesLibres.Count > 0; i++)
         {
-            if (posicionesLibres.Count == 0) break;
-
-            // Elegir un índice al azar de la lista
-            int indiceRandom = rnd.Next(posicionesLibres.Count);
-            int posicionReal = posicionesLibres[indiceRandom];
-
-            // Plantar la bandera normal
-            MapShape.Map123[posicionReal] = ID_BANDERA;
-
-            // Quitar la posición de la lista para no plantar dos banderas en el mismo lugar
-            posicionesLibres.RemoveAt(indiceRandom);
+            int idx = rnd.Next(posicionesLibres.Count);
+            MapShape.Map123[posicionesLibres[idx]] = ID_BANDERA;
+            posicionesLibres.RemoveAt(idx);
         }
 
         // 3. Sembrar 1 bandera especial
         if (posicionesLibres.Count > 0)
         {
-            int indiceRandom = rnd.Next(posicionesLibres.Count);
-            MapShape.Map123[posicionesLibres[indiceRandom]] = ID_BANDERA_ESPECIAL;
+            int idx = rnd.Next(posicionesLibres.Count);
+            MapShape.Map123[posicionesLibres[idx]] = ID_BANDERA_ESPECIAL;
         }
+    }
+    private bool ChocoConEnemigo()
+    {
+        Rectangle playerHitbox = new Rectangle(
+            (int)_player.Position.X + 2, (int)_player.Position.Y + 2, 12, 12);
+
+        foreach (var enemy in _enemies)
+        {
+            Rectangle enemyHitbox = new Rectangle(
+                (int)enemy.Position.X + 2, (int)enemy.Position.Y + 2, 12, 12);
+
+            if (playerHitbox.Intersects(enemyHitbox))
+                return true;
+        }
+
+        return false;
     }
 }

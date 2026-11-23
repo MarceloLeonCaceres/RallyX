@@ -20,6 +20,9 @@ internal class Sidebar : GameComponent<NewRallyXGame>
     private readonly ArcadeFont _font;
     private readonly SpriteSheet _sprites;
     private readonly SpriteBatch _batch;
+    // para el radar, necesitamos un sprite para cada celda del radar, y un sprite para el fondo del radar
+    private Texture2D _pixel;
+    private Rectangle _radarArea = new Rectangle(720, 220, 120, 192);
 
     public Sidebar(Game game, SpriteBatch spriteBatch, SpriteSheet sprites, ArcadeFont font)
         : base(game)
@@ -65,6 +68,7 @@ internal class Sidebar : GameComponent<NewRallyXGame>
         // Radar
         Rectangle radarBackground = new Rectangle(LEFT, 80, SIDEBAR_WIDTH, RADAR_HEIGHT);
         _batch.Draw(_texture, radarBackground, ArcadeFont.RadarBlue);
+        DibujarRadar(radarBackground, Game.PlayerPosition);
 
         base.Draw(gameTime);
     }
@@ -73,5 +77,42 @@ internal class Sidebar : GameComponent<NewRallyXGame>
     {
         Vector2 pos = new Vector2(LEFT, offset);
         _font.Draw(_batch, pos, message, gameTime, colour);
+    }
+    private void DibujarRadar(Rectangle radarArea, Vector2 playerPosition)
+    {
+        float escalaX = radarArea.Width / 120f;
+        float escalaY = radarArea.Height / 192f;
+
+        // 1. Banderas
+        for (int y = 0; y < 192; y++)
+        {
+            for (int x = 0; x < 120; x++)
+            {
+                int tileId = MapShape.Map123[(y * 120) + x];
+
+                if (tileId == NewRallyXGame.ID_BANDERA || tileId == NewRallyXGame.ID_BANDERA_ESPECIAL)
+                {
+                    int rx = radarArea.X + (int)(x * escalaX);
+                    int ry = radarArea.Y + (int)(y * escalaY);
+                    Color colorBandera = (tileId == NewRallyXGame.ID_BANDERA_ESPECIAL) ? ArcadeFont.Cyan : ArcadeFont.Yellow;
+
+                    _batch.Draw(_texture, new Rectangle(rx, ry, 2, 2), colorBandera);
+                }
+            }
+        }
+
+        // 2. Jugador
+        int px = radarArea.X + (int)((playerPosition.X / 8f) * escalaX);
+        int py = radarArea.Y + (int)((playerPosition.Y / 8f) * escalaY);
+
+        // Enemigos (Puntos rojos)
+        foreach (var enemy in Game.Enemies)
+        {
+            int ex = radarArea.X + (int)((enemy.Position.X / 8f) * escalaX);
+            int ey = radarArea.Y + (int)((enemy.Position.Y / 8f) * escalaY);
+            _batch.Draw(_texture, new Rectangle(ex, ey, 2, 2), ArcadeFont.Red);
+        }
+
+        _batch.Draw(_texture, new Rectangle(px, py, 2, 2), ArcadeFont.White);
     }
 }
